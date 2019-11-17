@@ -2,7 +2,11 @@
 import configparser
 import getpass
 
+# Don't touch this :)
 CONFIG_FILE = None
+
+# For valid timeline names, see:
+# https://mastodonpy.readthedocs.io/en/stable/#mastodon.Mastodon.timeline
 TIMELINE = "tag/VulpineClubBulletin"
 
 
@@ -93,6 +97,8 @@ def get_tag_high_water_mark(config):
 
 
 def is_boostworthy(mastodon, post):
+    """Returns True if the post is from an account we follow, and we haven't
+       already reblogged it."""
     relations = mastodon.account_relationships(post.account.id)
     for r in relations:
         if r.id == post.account.id and r.following and not post.reblogged:
@@ -101,18 +107,28 @@ def is_boostworthy(mastodon, post):
 
 
 def main():
+    """Main function"""
+
+    # Read in our local config
     creds = read_app_credentials()
     cfg = read_config_file('config.cfg')
 
+    # Connect to the instance
     mastodon = get_mastodon(creds, cfg)
 
+    # Get the ID of the last post we processed.
     hwm = get_tag_high_water_mark(cfg)
 
+    # Iterate over all new posts in the TIMELINE timeline.
     for sr in mastodon.timeline(TIMELINE, since_id=hwm):
+        # Bump up our high water mark, since we've already seen this one.
         hwm = sr.id
+
+        # Test for boostworthiness, and reblog if it's boost-worthy.
         if is_boostworthy(mastodon, sr):
             mastodon.status_reblog(sr.id)
 
+    # Save our new high water mark.
     set_tag_high_water_mark(cfg, hwm)
 
 
